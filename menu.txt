@@ -1,0 +1,345 @@
+-- Roblox Cheat Menu Script for Anti-Cheat Testing with Highlight ESP
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- State variables
+local aimbotEnabled = false
+local espEnabled = false
+local teamCheck = true
+local aimActive = false
+local triggerBotEnabled = false
+local strongAimbot = false
+local fovRadius = 100 -- Default FOV in pixels
+local aimLerpSpeed = 0.3
+
+-- Store ESP highlights for cleanup
+local espHighlights = {}
+
+-- UI Setup
+local gui = Instance.new("ScreenGui")
+gui.Name = "CheatMenuGui"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local function createButton(text, y)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0, 230, 0, 35)
+	btn.Position = UDim2.new(0, 15, 0, y)
+	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	btn.TextColor3 = Color3.new(1, 1, 1)
+	btn.TextScaled = true
+	btn.Font = Enum.Font.SourceSansBold
+	btn.Text = text
+	btn.AutoButtonColor = true
+	return btn
+end
+
+local function createLabel(text, y, parent)
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, -20, 0, 30)
+	lbl.Position = UDim2.new(0, 10, 0, y)
+	lbl.BackgroundTransparency = 1
+	lbl.TextColor3 = Color3.new(1,1,1)
+	lbl.TextScaled = true
+	lbl.Font = Enum.Font.SourceSans
+	lbl.Text = text
+	lbl.Parent = parent
+	return lbl
+end
+
+local function createPage()
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(0, 260, 0, 340)
+	frame.Position = UDim2.new(0, 30, 0, 30)
+	frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	frame.BorderSizePixel = 0
+	frame.Visible = false
+	frame.Parent = gui
+	return frame
+end
+
+-- Pages
+local mainPage = createPage()
+local settingsPage = createPage()
+mainPage.Visible = true
+
+-- Main Page UI
+local titleMain = Instance.new("TextLabel", mainPage)
+titleMain.Size = UDim2.new(1, 0, 0, 40)
+titleMain.BackgroundColor3 = Color3.fromRGB(50, 0, 0)
+titleMain.TextColor3 = Color3.fromRGB(255, 0, 0)
+titleMain.TextScaled = true
+titleMain.Font = Enum.Font.SourceSansBold
+titleMain.Text = "Cheat Menu"
+
+local aimbotBtn = createButton("Aimbot: OFF", 50)
+aimbotBtn.Parent = mainPage
+
+local espBtn = createButton("ESP: OFF", 100)
+espBtn.Parent = mainPage
+
+local triggerBotBtn = createButton("Trigger Bot: OFF", 150)
+triggerBotBtn.Parent = mainPage
+
+local goToSettingsBtn = createButton("➡ Settings", 200)
+goToSettingsBtn.Parent = mainPage
+
+local aimInfoLabel = createLabel("Hold Right Click to Aim", 240, mainPage)
+
+-- Settings Page UI
+local titleSettings = Instance.new("TextLabel", settingsPage)
+titleSettings.Size = UDim2.new(1, 0, 0, 40)
+titleSettings.BackgroundColor3 = Color3.fromRGB(0, 80, 120)
+titleSettings.TextColor3 = Color3.new(1,1,1)
+titleSettings.TextScaled = true
+titleSettings.Font = Enum.Font.SourceSansBold
+titleSettings.Text = "Settings"
+
+local teamBtn = createButton("Team Check: ON", 50)
+teamBtn.Parent = settingsPage
+
+local fovBtn = createButton("FOV: Medium", 100)
+fovBtn.Parent = settingsPage
+
+local strongAimBtn = createButton("Strong Aimbot: OFF", 140)
+strongAimBtn.Parent = settingsPage
+
+local exitBtn = createButton("Exit Cheat Menu", 190)
+exitBtn.Parent = settingsPage
+
+local backBtn = createButton("⬅ Back", 240)
+backBtn.Parent = settingsPage
+
+-- Button Logic
+aimbotBtn.MouseButton1Click:Connect(function()
+	aimbotEnabled = not aimbotEnabled
+	aimbotBtn.Text = "Aimbot: " .. (aimbotEnabled and "ON" or "OFF")
+end)
+
+espBtn.MouseButton1Click:Connect(function()
+	espEnabled = not espEnabled
+	espBtn.Text = "ESP: " .. (espEnabled and "ON" or "OFF")
+	if not espEnabled then
+		-- Clear ESP highlights
+		for plyr, highlight in pairs(espHighlights) do
+			if highlight and highlight.Parent then
+				highlight:Destroy()
+			end
+		end
+		espHighlights = {}
+	end
+end)
+
+triggerBotBtn.MouseButton1Click:Connect(function()
+	triggerBotEnabled = not triggerBotEnabled
+	triggerBotBtn.Text = "Trigger Bot: " .. (triggerBotEnabled and "ON" or "OFF")
+end)
+
+goToSettingsBtn.MouseButton1Click:Connect(function()
+	mainPage.Visible = false
+	settingsPage.Visible = true
+end)
+
+teamBtn.MouseButton1Click:Connect(function()
+	teamCheck = not teamCheck
+	teamBtn.Text = "Team Check: " .. (teamCheck and "ON" or "OFF")
+end)
+
+local fovOptions = {"Small", "Medium", "Large"}
+local fovValues = {50, 100, 200}
+local currentFOVIndex = 2 -- Medium by default
+
+fovBtn.MouseButton1Click:Connect(function()
+	currentFOVIndex = currentFOVIndex + 1
+	if currentFOVIndex > #fovOptions then currentFOVIndex = 1 end
+	fovRadius = fovValues[currentFOVIndex]
+	fovBtn.Text = "FOV: " .. fovOptions[currentFOVIndex]
+end)
+
+strongAimBtn.MouseButton1Click:Connect(function()
+	strongAimbot = not strongAimbot
+	strongAimBtn.Text = "Strong Aimbot: " .. (strongAimbot and "ON" or "OFF")
+end)
+
+exitBtn.MouseButton1Click:Connect(function()
+	gui.Enabled = false
+end)
+
+backBtn.MouseButton1Click:Connect(function()
+	settingsPage.Visible = false
+	mainPage.Visible = true
+end)
+
+-- Aim lock tracking
+UserInputService.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		aimActive = true
+	end
+end)
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		aimActive = false
+	end
+end)
+
+-- Helper: Get closest target to center of screen within FOV
+local function getClosestTarget()
+	local closestTarget = nil
+	local shortestDistance = math.huge
+	local mousePos = UserInputService:GetMouseLocation()
+	for _, plyr in pairs(Players:GetPlayers()) do
+		if plyr ~= player and plyr.Character and plyr.Character:FindFirstChild("Head") then
+			if teamCheck and plyr.Team == player.Team then
+				continue
+			end
+			local screenPos, onScreen = camera:WorldToViewportPoint(plyr.Character.Head.Position)
+			if onScreen then
+				local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(mousePos.X, mousePos.Y)).Magnitude
+				if dist < fovRadius and dist < shortestDistance then
+					shortestDistance = dist
+					closestTarget = plyr
+				end
+			end
+		end
+	end
+	return closestTarget
+end
+
+-- ESP using Highlight and BillboardGui
+local function createESPForPlayer(target)
+	if espHighlights[target] then return end
+	if target == player then return end
+	if not target.Character then return end
+
+	-- Team check
+	if teamCheck and target.Team == player.Team then return end
+
+	local char = target.Character
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "ESP_Highlight"
+	highlight.FillColor = Color3.fromRGB(255, 0, 0)
+	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+	highlight.FillTransparency = 0.5
+	highlight.OutlineTransparency = 0
+	highlight.Adornee = char
+	highlight.Parent = char
+
+	-- BillboardGui for name
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "ESPName"
+	billboard.Size = UDim2.new(0, 200, 0, 50)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.AlwaysOnTop = true
+	local head = char:FindFirstChild("Head")
+	if head then
+		billboard.Adornee = head
+	end
+	billboard.Parent = char
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(1, 0, 1, 0)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = target.Name
+	nameLabel.TextColor3 = Color3.new(1, 1, 1)
+	nameLabel.TextStrokeTransparency = 0.5
+	nameLabel.TextScaled = true
+	nameLabel.Font = Enum.Font.SourceSansBold
+	nameLabel.Parent = billboard
+
+	espHighlights[target] = highlight
+end
+
+local function removeESPForPlayer(target)
+	if espHighlights[target] then
+		espHighlights[target]:Destroy()
+		espHighlights[target] = nil
+	end
+	-- Also remove BillboardGui if present
+	if target.Character then
+		local billboard = target.Character:FindFirstChild("ESPName")
+		if billboard then billboard:Destroy() end
+	end
+end
+
+-- Update ESP each frame
+RunService.RenderStepped:Connect(function()
+	if espEnabled then
+		for _, plyr in pairs(Players:GetPlayers()) do
+			if plyr.Character and plyr.Character:FindFirstChild("Humanoid") and plyr.Character.Humanoid.Health > 0 then
+				if not (teamCheck and plyr.Team == player.Team) then
+					createESPForPlayer(plyr)
+				else
+					removeESPForPlayer(plyr)
+				end
+			else
+				removeESPForPlayer(plyr)
+			end
+		end
+	else
+		-- Remove all highlights when ESP off
+		for plyr, _ in pairs(espHighlights) do
+			removeESPForPlayer(plyr)
+		end
+	end
+end)
+
+-- Wall check for trigger bot (raycast)
+local function canSeeTargetHead(target)
+	if not target.Character then return false end
+	local head = target.Character:FindFirstChild("Head")
+	if not head then return false end
+	local origin = camera.CFrame.Position
+	local direction = (head.Position - origin).Unit * 500
+
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterDescendantsInstances = {player.Character}
+	raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+	local result = workspace:Raycast(origin, direction, raycastParams)
+	if result and result.Instance then
+		if result.Instance:IsDescendantOf(target.Character) then
+			return true
+		else
+			return false
+		end
+	else
+		-- no hit = clear sight
+		return true
+	end
+end
+
+local mouse = player:GetMouse()
+
+-- Main loop for aimbot + trigger bot
+RunService.RenderStepped:Connect(function()
+	-- Aimbot
+	if aimbotEnabled and aimActive then
+		local target = getClosestTarget()
+		if target and target.Character and target.Character:FindFirstChild("Head") then
+			local headPos = target.Character.Head.Position
+			local camPos = camera.CFrame.Position
+			local direction = (headPos - camPos).Unit
+			local targetCFrame = CFrame.new(camPos, camPos + direction)
+
+			if strongAimbot then
+				camera.CFrame = targetCFrame
+			else
+				camera.CFrame = camera.CFrame:Lerp(targetCFrame, aimLerpSpeed)
+			end
+		end
+	end
+
+	-- Trigger Bot
+	if triggerBotEnabled then
+		local target = getClosestTarget()
+		if target and canSeeTargetHead(target) then
+			mouse1click()
+		end
+	end
+end)
+
+print("Cheat menu loaded. Use the UI to toggle features.")
